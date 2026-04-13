@@ -1,0 +1,103 @@
+rules:
+
+  # ── Secrets / Credentials ──────────────────────────────────────────────────
+
+  - id: hardcoded-password-variable
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|passwd|secret|api_key|apikey|token|auth)
+    message: |
+      Hardcoded credential detected in variable '$VAR'.
+      Use environment variables or a secrets manager instead.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-798
+
+  - id: generic-api-key-string
+    pattern-regex: (?i)(api[_-]?key|secret[_-]?key)\s*=\s*["'][A-Za-z0-9_\-]{16,}["']
+    message: Possible hardcoded API key detected. Use environment variables.
+    languages: [python, javascript, typescript, go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-798
+
+  # ── Insecure Cryptography ──────────────────────────────────────────────────
+
+  - id: insecure-hash-md5
+    pattern: hashlib.md5(...)
+    message: |
+      MD5 is cryptographically broken. Use SHA-256 or better for security-sensitive
+      hashing. If you need MD5 for non-security use (e.g. checksums), add
+      usedforsecurity=False.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-327
+
+  - id: insecure-hash-sha1
+    pattern: hashlib.sha1(...)
+    message: SHA-1 is deprecated for security use. Use SHA-256 or SHA-3.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-327
+
+  # ── SQL Injection ──────────────────────────────────────────────────────────
+
+  - id: sql-injection-format-string
+    patterns:
+      - pattern: |
+          $CONN.execute("..." % ...)
+      - pattern: |
+          $CONN.execute(f"...{...}...")
+      - pattern: |
+          $CONN.execute("..." + ...)
+    message: |
+      Possible SQL injection via string formatting. Use parameterized queries:
+        cursor.execute("SELECT ... WHERE id = %s", (user_id,))
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-89
+
+  # ── Deserialization ────────────────────────────────────────────────────────
+
+  - id: unsafe-pickle-load
+    patterns:
+      - pattern: pickle.load(...)
+      - pattern: pickle.loads(...)
+    message: |
+      Unpickling data from untrusted sources allows arbitrary code execution.
+      Use JSON or another safe serialization format for untrusted data.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-502
+
+  # ── Debug / Development flags ──────────────────────────────────────────────
+
+  - id: flask-debug-true
+    pattern: app.run(..., debug=True, ...)
+    message: Flask debug mode must be disabled in production (enables remote code execution).
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-94
+
+  - id: fastapi-debug-true
+    pattern: uvicorn.run(..., reload=True, ...)
+    message: uvicorn reload mode should not be used in production.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
