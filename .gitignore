@@ -1,0 +1,36 @@
+# Secrets — never commit
+*.pem *.key *.p12 *.pfx
+.env .env.*
+secrets/
+*secret*
+*credential*
+
+# Scan results (generated, not committed)
+results/
+reports/
+*.sarif
+trivy-results.json
+sbom.json
+sbom.spdx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+
+# Docker
+.docker/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
