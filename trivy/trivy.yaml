@@ -1,0 +1,50 @@
+# Trivy configuration file
+# https://aquasecurity.github.io/trivy/latest/docs/references/configuration/config-file/
+
+# Scan settings
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Ignore unfixed vulnerabilities (they can't be remediated until upstream patches)
+ignore-unfixed: true
+
+# Timeout for scans
+timeout: 10m
+
+# Output format
+format: table
+
+# Exit code when vulnerabilities are found
+exit-code: 1
+exit-on-eol: 1
+
+# Vulnerability types to check
+vuln-type:
+  - os
+  - library
+
+# Scanners to enable
+scanners:
+  - vuln
+  - secret
+  - misconfig
+
+# Skip specific files/directories
+skip-files:
+  - "**/*.test.py"
+  - "**/*_test.go"
+
+skip-dirs:
+  - .git
+  - node_modules
+  - .venv
+
+# Secret scanning config
+secret:
+  config: trivy-secret.yaml
+
+# Misconfig scanning
+misconfig:
+  include-non-failures: false
