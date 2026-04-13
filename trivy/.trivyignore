@@ -1,0 +1,7 @@
+# Trivy ignore file — list CVE IDs to suppress with justification
+#
+# Format:
+#   CVE-YYYY-NNNNN  # justification: <reason> | expires: YYYY-MM-DD
+#
+# Example (uncomment when needed):
+# CVE-2023-12345  # justification: only exploitable with physical access | expires: 2024-06-01
