@@ -1,0 +1,17 @@
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+severity = "medium"
+confidence = "medium"
+skips = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "S", "B"]
+ignore = ["S101"]   # allow assert in tests
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+pythonpath = ["app"]
