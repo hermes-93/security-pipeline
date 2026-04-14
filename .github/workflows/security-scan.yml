@@ -272,8 +272,19 @@ jobs:
 
       - name: Install Conftest
         run: |
-          # brew is pre-installed on ubuntu-latest — more reliable than binary download
-          brew install conftest
+          set -euo pipefail
+          # Fetch latest version via API; fall back to known-good version on failure
+          TAG=$(curl -sf --max-time 15 \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])" \
+            || echo "v0.51.0")
+          VERSION="${TAG#v}"
+          echo "Installing conftest ${VERSION}"
+          curl --retry 3 --retry-delay 5 -fsSLo conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/${TAG}/conftest_${VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf conftest.tar.gz
+          sudo install -m 0755 conftest /usr/local/bin/conftest
           conftest --version
 
       - name: Test Dockerfile policies
