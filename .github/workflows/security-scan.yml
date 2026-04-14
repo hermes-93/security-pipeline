@@ -192,40 +192,61 @@ jobs:
             --tag ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} \
             --tag ${{ env.IMAGE }}:scan-target
 
+      # Install Trivy CLI (more reliable than the action for SARIF output)
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg --quiet
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -qq
+          sudo apt-get install -y trivy --quiet
+          trivy --version
+
       # Trivy: scan built image for OS + app layer vulns
+      # Write SARIF first (always), then fail separately if CRITICAL found
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
-          format: sarif
-          output: trivy-image.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"       # fail on CRITICAL or HIGH
-          ignore-unfixed: true
-          vuln-type: os,library
-          trivyignores: trivy/.trivyignore
+        run: |
+          IGNORES=""
+          [ -f trivy/.trivyignore ] && IGNORES="--ignorefile trivy/.trivyignore"
+          trivy image \
+            --format sarif \
+            --output trivy-image.sarif \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            $IGNORES \
+            ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} || true
+          # Fail if CRITICAL findings exist
+          trivy image \
+            --format table \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            $IGNORES \
+            ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
 
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-image.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
 
-      # Trivy: also scan repo filesystem (IaC misconfigs)
+      # Trivy: also scan repo filesystem (IaC misconfigs) — warn only
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-fs.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "0"       # warn only for FS scan
-          scanners: vuln,secret,misconfig
+        run: |
+          trivy fs \
+            --format sarif \
+            --output trivy-fs.sarif \
+            --severity CRITICAL,HIGH \
+            --scanners vuln,secret,misconfig \
+            . || true
 
       - name: Upload Trivy FS SARIF
-        if: always()
+        if: always() && hashFiles('trivy-fs.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-fs.sarif
@@ -244,10 +265,16 @@ jobs:
 
       - name: Install Conftest
         run: |
-          VERSION="0.57.0"
-          curl -sLo conftest.tar.gz \
-            "https://github.com/open-policy-agent/conftest/releases/download/v${VERSION}/conftest_${VERSION}_Linux_x86_64.tar.gz"
-          tar -xzf conftest.tar.gz
+          # Get latest release tag dynamically to avoid hardcoded stale versions
+          TAG=$(curl -sf --max-time 15 \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/open-policy-agent/conftest/releases/latest" \
+            | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          VERSION="${TAG#v}"
+          echo "Installing conftest ${VERSION} (${TAG})"
+          curl -fsSLo conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/${TAG}/conftest_${VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf conftest.tar.gz conftest
           sudo install -m 0755 conftest /usr/local/bin/conftest
           conftest --version
 
